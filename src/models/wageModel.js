@@ -9,7 +9,6 @@ const wageSchema = new mongoose.Schema(
     },
     employeeId: {
       type: String,
-      ref: 'Employee',
       required: true,
     },
     employeeName: {
