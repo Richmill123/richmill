@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import Stock from '../models/stockModel.js';
 
 dotenv.config();
 
@@ -18,6 +19,20 @@ const connectDB = async () => {
     };
 
     const conn = await mongoose.connect(process.env.MONGODB_URI, options);
+
+    try {
+      const indexes = await Stock.collection.indexes();
+      const legacyIndex = indexes.find((idx) => idx && idx.name === 'itemType_1');
+
+      if (legacyIndex) {
+        await Stock.collection.dropIndex('itemType_1');
+        console.log('Dropped legacy unique index stocks.itemType_1');
+      }
+
+      await Stock.collection.createIndex({ clientId: 1, itemType: 1 }, { unique: true });
+    } catch (indexErr) {
+      console.error('Stock index initialization error:', indexErr.message || indexErr);
+    }
     
     // Connection events
     mongoose.connection.on('connected', () => {

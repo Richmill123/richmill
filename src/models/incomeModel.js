@@ -38,6 +38,6 @@ const incomeSchema = new mongoose.Schema(
 // Index for faster querying
 // expenseSchema.index({ date: -1, category: 1 });
 
-const Expense = mongoose.model('Income', incomeSchema);
+const Income = mongoose.model('Income', incomeSchema);
 
-export default Expense;
+export default Income;

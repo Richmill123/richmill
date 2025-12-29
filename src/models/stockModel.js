@@ -11,7 +11,6 @@ const stockSchema = new mongoose.Schema(
       type: String,
       enum: ['bran', 'husk', 'black rice', 'broken rice', 'others', 'Karika'],
       required: true,
-      unique: true,
     },
     availableQuantity: {
       type: Number,

@@ -42,6 +42,11 @@ const wageSchema = new mongoose.Schema(
     advanceamount: {
       type: String
     },
+    bags: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     date: {
       type: Date,
       default: Date.now,

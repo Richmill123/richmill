@@ -12,7 +12,7 @@ const getStock = asyncHandler(async (req, res) => {
     throw new Error('Client ID is required');
   }
 
- const query = { clientId: clientId.trim() };
+ const query = { clientId };
   
   // Add date filtering if startDate and/or endDate are provided
   if (startDate || endDate) {
@@ -71,6 +71,7 @@ const addStockItem = asyncHandler(async (req, res) => {
   const existingItem = await Stock.findOne({ itemType, clientId });
   if (existingItem) {
     res.status(400);
+    console.log('dvvrve');
     throw new Error('This item type already exists for this client');
   }
 

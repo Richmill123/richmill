@@ -7,6 +7,7 @@ import Wage from '../models/wageModel.js';
 import Expense from '../models/expenseModel.js';
 import Stock from '../models/stockModel.js';
 import Employee from '../models/employeeModel.js';
+import Income from '../models/incomeModel.js';
 
 // @desc    Create a new admin
 // @route   POST /api/admins
@@ -144,6 +145,8 @@ const getDashboard = asyncHandler(async (req, res) => {
     throw new Error('Client ID is required');
   }
 
+  const clientIdTrimmed = String(clientId).trim();
+
   const now = new Date();
   const rangeStart = startDate
     ? (() => {
@@ -163,14 +166,19 @@ const getDashboard = asyncHandler(async (req, res) => {
 
   const createdAtFilter = { $gte: rangeStart, $lte: rangeEnd };
 
-  const orderMatch = { clientId };
-  const saleMatch = { clientId };
-  const wageMatch = { clientId };
-  const expenseMatch = { clientId };
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  const orderMatch = { clientId: clientIdTrimmed };
+  const saleMatch = { clientId: clientIdTrimmed };
+  const wageMatch = { clientId: clientIdTrimmed };
+  const expenseMatch = { clientId: clientIdTrimmed };
+  const incomeMatch = { clientId: clientIdTrimmed };
   orderMatch.createdAt = createdAtFilter;
   saleMatch.createdAt = createdAtFilter;
   wageMatch.createdAt = createdAtFilter;
   expenseMatch.createdAt = createdAtFilter;
+  incomeMatch.date = createdAtFilter;
 
   const normalizeItemType = (itemType) => {
     if (!itemType) return 'other';
@@ -188,27 +196,34 @@ const getDashboard = asyncHandler(async (req, res) => {
   const monthFilter = month && month >= 1 && month <= 12 ? month : null;
 
   // Create year match filter
-  const yearMatch = { clientId, createdAt: { $gte: yearStart, $lt: yearEndExclusive } };
+  const yearMatch = { clientId: clientIdTrimmed, createdAt: { $gte: yearStart, $lt: yearEndExclusive } };
+  const yearIncomeMatch = { clientId: clientIdTrimmed, date: { $gte: yearStart, $lt: yearEndExclusive } };
   
   // If specific month is requested, filter to that month only
   if (monthFilter) {
     const monthStart = new Date(yearNumber, monthFilter - 1, 1, 0, 0, 0, 0);
     const monthEnd = new Date(yearNumber, monthFilter, 0, 23, 59, 59, 999);
     yearMatch.createdAt = { $gte: monthStart, $lte: monthEnd };
+    yearIncomeMatch.date = { $gte: monthStart, $lte: monthEnd };
   }
 
   const [
     paidOrderAgg,
     processedOrderAgg,
+    todayCreatedOrdersAgg,
+    pendingOrdersExcludingTodayAgg,
+    todayWageBagsAgg,
     paidSaleAgg,
     salesByItemAgg,
     wagesAgg,
     expensesAgg,
     salaryAgg,
+    incomeAgg,
     yearPaidOrdersAgg,
     yearPaidSalesAgg,
     yearWagesAgg,
     yearExpensesAgg,
+    yearIncomeAgg,
     yearSalesByItemAgg,
     stockDocs,
     initialStockingAgg,
@@ -238,6 +253,52 @@ const getDashboard = asyncHandler(async (req, res) => {
         $group: {
           _id: null,
           totalBags: { $sum: '$numberOfBags' },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+    Order.aggregate([
+      {
+        $match: {
+          clientId: clientIdTrimmed,
+          createdAt: { $gte: todayStart, $lte: todayEnd },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalBags: { $sum: '$numberOfBags' },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+    Order.aggregate([
+      {
+        $match: {
+          clientId: clientIdTrimmed,
+          status: { $in: ['CREATED', 'INITIAL STOCKING'] },
+          createdAt: { $lt: todayStart },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalBags: { $sum: '$numberOfBags' },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+    Wage.aggregate([
+      {
+        $match: {
+          clientId: clientIdTrimmed,
+          createdAt: { $gte: todayStart, $lte: todayEnd },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalBags: { $sum: '$bags' },
           count: { $sum: 1 },
         },
       },
@@ -293,8 +354,18 @@ const getDashboard = asyncHandler(async (req, res) => {
         },
       },
     ]),
+    Income.aggregate([
+  { $match: incomeMatch },
+  {
+    $group: {
+      _id: null,
+      totalIncome: { $sum: '$amount' },
+      count: { $sum: 1 },
+    },
+  },
+]),
     Employee.aggregate([
-      { $match: { clientId, isActive: true } },
+      { $match: { clientId: clientIdTrimmed, isActive: true } },
       {
         $group: {
           _id: null,
@@ -353,6 +424,17 @@ const getDashboard = asyncHandler(async (req, res) => {
         },
       },
     ]),
+    Income.aggregate([
+      {
+        $match: yearIncomeMatch,
+      },
+      {
+        $group: {
+          _id: monthFilter ? null : { $month: '$date' },
+          totalIncome: { $sum: '$amount' },
+        },
+      },
+    ]),
     Sale.aggregate([
       {
         $match: {
@@ -369,7 +451,7 @@ const getDashboard = asyncHandler(async (req, res) => {
         },
       },
     ]),
-    Stock.find({ clientId }).select('itemType availableQuantity'),
+    Stock.find({ clientId: clientIdTrimmed }).select('itemType availableQuantity'),
     Order.aggregate([
       {
         $match: {
@@ -434,9 +516,13 @@ const getDashboard = asyncHandler(async (req, res) => {
 
   const paidOrders = paidOrderAgg?.[0] || { totalAmount: 0, totalBags: 0, count: 0 };
   const processedOrders = processedOrderAgg?.[0] || { totalBags: 0, count: 0 };
+  const todayCreatedOrders = todayCreatedOrdersAgg?.[0] || { totalBags: 0, count: 0 };
+  const pendingOrdersExcludingToday = pendingOrdersExcludingTodayAgg?.[0] || { totalBags: 0, count: 0 };
+  const todayWageBags = todayWageBagsAgg?.[0] || { totalBags: 0, count: 0 };
   const paidSales = paidSaleAgg?.[0] || { totalAmount: 0, count: 0 };
   const wages = wagesAgg?.[0] || { totalWage: 0, count: 0 };
   const expenses = expensesAgg?.[0] || { totalExpense: 0, count: 0 };
+  const incomes = incomeAgg?.[0] || { totalIncome: 0, count: 0 };
   const salaries = salaryAgg?.[0] || { totalSalary: 0, count: 0 };
   const initialStocking = initialStockingAgg?.[0] || { totalBags: 0, count: 0 };
   const boilingCompleted = boilingCompletedAgg?.[0] || { totalBags: 0, count: 0 };
@@ -474,12 +560,18 @@ const getDashboard = asyncHandler(async (req, res) => {
 
   const revenueOrders = paidOrders.totalAmount || 0;
   const revenueSales = paidSales.totalAmount || 0;
-  const revenueTotal = revenueOrders + revenueSales;
+  const revenueIncome = incomes.totalIncome || 0;
+  const revenueTotal = revenueOrders + revenueSales + revenueIncome;
 
   const expenseWages = wages.totalWage || 0;
   const expenseSalary = salaries.totalSalary || 0;
   const expenseOther = expenses.totalExpense || 0;
   const expenseTotal = expenseWages + expenseSalary + expenseOther;
+
+  const todaySummaryTotalOrder = pendingOrdersExcludingToday.totalBags || 0;
+  const todaySummaryPaddyTaken = todayWageBags.totalBags || 0;
+  const todaySummaryNewOrder = todayCreatedOrders.totalBags || 0;
+  const todaySummaryOutput = todaySummaryTotalOrder - todaySummaryPaddyTaken + todaySummaryNewOrder;
 
   const yearMonths = monthFilter ? null : Array.from({ length: 12 }, (_, i) => {
     const byItemType = {
@@ -539,7 +631,7 @@ const getDashboard = asyncHandler(async (req, res) => {
       }
     }
 
-    singleMonthData.revenue.total = (singleMonthData.revenue.orders || 0) + (singleMonthData.revenue.sales || 0);
+    singleMonthData.revenue.total = (singleMonthData.revenue.orders || 0) + (singleMonthData.revenue.sales || 0) + (yearIncomeAgg?.[0]?.totalIncome || 0);
     singleMonthData.expense.total = (singleMonthData.expense.wages || 0) + (singleMonthData.expense.salary || 0) + (singleMonthData.expense.other || 0);
     singleMonthData.profit = singleMonthData.revenue.total - singleMonthData.expense.total;
 
@@ -556,6 +648,12 @@ const getDashboard = asyncHandler(async (req, res) => {
         total: expenseTotal,
       },
       profit: revenueTotal - expenseTotal,
+      todaySummary: {
+        totalOrder: todaySummaryTotalOrder,
+        paddyTaken: todaySummaryPaddyTaken,
+        newOrder: todaySummaryNewOrder,
+        output: todaySummaryOutput,
+      },
       paddyProcessed: {
         totalBags: processedOrders.totalBags || 0,
         paidBags: paidOrders.totalBags || 0,
@@ -624,7 +722,8 @@ const getDashboard = asyncHandler(async (req, res) => {
   }
 
   for (const m of yearMonths) {
-    m.revenue.total = (m.revenue.orders || 0) + (m.revenue.sales || 0);
+    const monthIncome = yearIncomeAgg?.find(row => (row._id || 0) === m.month)?.totalIncome || 0;
+    m.revenue.total = (m.revenue.orders || 0) + (m.revenue.sales || 0) + monthIncome;
     m.expense.total = (m.expense.wages || 0) + (m.expense.salary || 0) + (m.expense.other || 0);
     m.profit = m.revenue.total - m.expense.total;
   }
@@ -642,6 +741,12 @@ const getDashboard = asyncHandler(async (req, res) => {
       total: expenseTotal,
     },
     profit: revenueTotal - expenseTotal,
+    todaySummary: {
+      totalOrder: todaySummaryTotalOrder,
+      paddyTaken: todaySummaryPaddyTaken,
+      newOrder: todaySummaryNewOrder,
+      output: todaySummaryOutput,
+    },
     paddyProcessed: {
       totalBags: processedOrders.totalBags || 0,
       paidBags: paidOrders.totalBags || 0,
