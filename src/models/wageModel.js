@@ -39,6 +39,9 @@ const wageSchema = new mongoose.Schema(
       enum: ['Electric', 'Manual', 'Hybrid'],
       required: true,
     },
+    advanceamount: {
+      type: String
+    },
     date: {
       type: Date,
       default: Date.now,

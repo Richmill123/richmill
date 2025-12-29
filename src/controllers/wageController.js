@@ -12,6 +12,7 @@ const createWage = asyncHandler(async (req, res) => {
     totalWage,
     typeOfWork,
     machineType,
+    advanceamount,
     clientId,
   } = req.body;
 
@@ -27,6 +28,7 @@ const createWage = asyncHandler(async (req, res) => {
     totalWage,
     typeOfWork,
     machineType,
+    advanceamount,
     clientId,
   });
 
@@ -45,7 +47,7 @@ const getWages = asyncHandler(async (req, res) => {
     throw new Error('Client ID is required');
   }
 
-  const query = { clientId };
+ const query = { clientId: clientId.trim() };
   
   // Add date filtering if startDate and/or endDate are provided
   if (startDate || endDate) {
@@ -70,7 +72,7 @@ const getWages = asyncHandler(async (req, res) => {
 // @route   PUT /api/wages/:id
 // @access  Private
 const updateWage = asyncHandler(async (req, res) => {
-  const { advanceWage, totalWage, typeOfWork, machineType, clientId } = req.body;
+  const { advanceWage, totalWage, typeOfWork, machineType, advanceamount, clientId } = req.body;
   
   if (!clientId) {
     res.status(400);
@@ -89,6 +91,7 @@ const updateWage = asyncHandler(async (req, res) => {
     wage.totalWage = totalWage || wage.totalWage;
     wage.typeOfWork = typeOfWork || wage.typeOfWork;
     wage.machineType = machineType || wage.machineType;
+    wage.advanceamount = advanceamount || wage.advanceamount;
 
     const updatedWage = await wage.save();
     res.json(updatedWage);

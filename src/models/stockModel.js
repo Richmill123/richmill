@@ -9,7 +9,7 @@ const stockSchema = new mongoose.Schema(
     },
     itemType: {
       type: String,
-      enum: ['bran', 'husk', 'black rice', 'broken rice', 'others'],
+      enum: ['bran', 'husk', 'black rice', 'broken rice', 'others', 'Karika'],
       required: true,
       unique: true,
     },

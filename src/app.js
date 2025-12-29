@@ -11,6 +11,7 @@ import wageRoutes from './routes/wageRoutes.js';
 import expenseRoutes from './routes/expenseRoutes.js';
 import stockRoutes from './routes/stockRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import incomeRoutes from './routes/incomeRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -33,6 +34,7 @@ app.use('/api/wages', wageRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/admins', adminRoutes);
+app.use('/api/income', incomeRoutes);
 
 
 // Basic route
@@ -46,6 +48,7 @@ app.get('/', (req, res) => {
       wages: '/api/wages',
       expenses: '/api/expenses',
       stock: '/api/stock',   
+      income: '/api/income'
     }
   });
 });

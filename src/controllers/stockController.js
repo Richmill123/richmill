@@ -12,7 +12,7 @@ const getStock = asyncHandler(async (req, res) => {
     throw new Error('Client ID is required');
   }
 
-  const query = { clientId };
+ const query = { clientId: clientId.trim() };
   
   // Add date filtering if startDate and/or endDate are provided
   if (startDate || endDate) {

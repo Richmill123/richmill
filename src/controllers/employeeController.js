@@ -31,7 +31,7 @@ const createEmployee = asyncHandler(async (req, res) => {
     emergencyContactNumber,
     maritalStatus,
     salary,
-    clientId,
+    clientId: clientId.trim(),
   });
 
   const createdEmployee = await employee.save();
@@ -65,7 +65,7 @@ const updateEmployee = asyncHandler(async (req, res) => {
     throw new Error('Client ID is required');
   }
 
-  const employee = await Employee.findOne({ _id: req.params.id, clientId });
+  const employee = await Employee.findOne({ _id: req.params.id, clientId: clientId.trim() });
   
   if (!employee) {
     res.status(404);

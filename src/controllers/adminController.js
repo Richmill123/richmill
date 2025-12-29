@@ -465,6 +465,7 @@ const getDashboard = asyncHandler(async (req, res) => {
     'black rice': 0,
     'broken rice': 0,
     other: 0,
+    Karika: 0
   };
   for (const s of stockDocs || []) {
     const key = normalizeItemType(s.itemType);
