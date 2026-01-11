@@ -16,6 +16,7 @@ const createWage = asyncHandler(async (req, res) => {
     advanceamount,
     clientId,
     createdAt,
+    advancedebtamount
   } = req.body;
 
   if (!clientId) {
