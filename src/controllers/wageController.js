@@ -41,6 +41,7 @@ const createWage = asyncHandler(async (req, res) => {
     typeOfWork,
     machineType,
     advanceamount,
+    advancedebtamount,
     clientId,
     ...(parsedCreatedAt ? { createdAt: parsedCreatedAt } : {}),
   });
@@ -85,7 +86,7 @@ const getWages = asyncHandler(async (req, res) => {
 // @route   PUT /api/wages/:id
 // @access  Private
 const updateWage = asyncHandler(async (req, res) => {
-  const { advanceWage, totalWage, bags, typeOfWork, machineType, advanceamount, clientId } = req.body;
+  const { advanceWage, totalWage, bags, typeOfWork, machineType, advanceamount, advancedebtamount, clientId } = req.body;
   
   if (!clientId) {
     res.status(400);
@@ -106,6 +107,7 @@ const updateWage = asyncHandler(async (req, res) => {
     wage.typeOfWork = typeOfWork || wage.typeOfWork;
     wage.machineType = machineType || wage.machineType;
     wage.advanceamount = advanceamount || wage.advanceamount;
+    wage.advancedebtamount = advancedebtamount || wage.advancedebtamount;
 
     const updatedWage = await wage.save();
     res.json(updatedWage);

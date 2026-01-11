@@ -43,7 +43,7 @@ const wageSchema = new mongoose.Schema(
       enum: ['Electric', 'Manual', 'Hybrid'],
       required: true,
     },
-    advanceamount: {
+    advancedebtamount: {
       type: String
     },
     bags: {
