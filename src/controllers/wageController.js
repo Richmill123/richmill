@@ -13,6 +13,7 @@ const createWage = asyncHandler(async (req, res) => {
     bags,
     typeOfWork,
     machineType,
+    date,
     advanceamount,
     clientId,
     createdAt,
@@ -43,6 +44,7 @@ const createWage = asyncHandler(async (req, res) => {
     machineType,
     advanceamount,
     advancedebtamount,
+    date,
     clientId,
     ...(parsedCreatedAt ? { createdAt: parsedCreatedAt } : {}),
   });
