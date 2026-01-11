@@ -11,11 +11,21 @@ const createIncome = asyncHandler(async (req, res) => {
     amount,
     date,
     clientId,
+    createdAt,
   } = req.body;
 
   if (!clientId) {
     res.status(400);
     throw new Error('Client ID is required');
+  }
+
+  let parsedCreatedAt;
+  if (createdAt !== undefined && createdAt !== null && createdAt !== '') {
+    parsedCreatedAt = new Date(createdAt);
+    if (Number.isNaN(parsedCreatedAt.getTime())) {
+      res.status(400);
+      throw new Error('Invalid createdAt. Use a valid date string or timestamp.');
+    }
   }
 
   const income = new Income({
@@ -25,6 +35,7 @@ const createIncome = asyncHandler(async (req, res) => {
     date: date || Date.now(),
     clientId,
     recordedBy: req.user?._id,
+    ...(parsedCreatedAt ? { createdAt: parsedCreatedAt } : {}),
   });
 
   const createdIncome = await income.save();

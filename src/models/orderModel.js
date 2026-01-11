@@ -51,7 +51,11 @@ const orderSchema = new mongoose.Schema(
         'PAID & CLOSE',
       ],
       default: 'CREATED',
-    }
+    },
+    splittingincome: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,

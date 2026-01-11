@@ -19,6 +19,10 @@ const wageSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    advanceamount: {
+      type: Number,
+      default: 0,
+    },
     totalWage: {
       type: Number,
       required: true,

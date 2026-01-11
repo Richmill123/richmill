@@ -14,6 +14,8 @@ const createEmployee = asyncHandler(async (req, res) => {
     emergencyContactNumber,
     maritalStatus,
     salary,
+    advanceAmount,
+    debtAmount,
     clientId,
   } = req.body;
 
@@ -31,6 +33,8 @@ const createEmployee = asyncHandler(async (req, res) => {
     emergencyContactNumber,
     maritalStatus,
     salary,
+    advanceAmount,
+    debtAmount,
     clientId: clientId.trim(),
   });
 
@@ -81,6 +85,8 @@ const updateEmployee = asyncHandler(async (req, res) => {
     employee.emergencyContactNumber = req.body.emergencyContactNumber || employee.emergencyContactNumber;
     employee.maritalStatus = req.body.maritalStatus || employee.maritalStatus;
     employee.salary = req.body.salary || employee.salary;
+    employee.advanceAmount = req.body.advanceAmount || employee.advanceAmount;
+    employee.debtAmount = req.body.debtAmount || employee.debtAmount;
     employee.isActive = req.body.isActive !== undefined ? req.body.isActive : employee.isActive;
 
     const updatedEmployee = await employee.save();

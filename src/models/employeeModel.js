@@ -42,6 +42,14 @@ const employeeSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    advanceAmount: {
+      type: Number,
+      default: 0,
+    },
+    debtAmount: {
+      type: Number,
+      default: 0,
+    },
     isActive: {
       type: Boolean,
       default: true,

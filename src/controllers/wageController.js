@@ -15,11 +15,21 @@ const createWage = asyncHandler(async (req, res) => {
     machineType,
     advanceamount,
     clientId,
+    createdAt,
   } = req.body;
 
   if (!clientId) {
     res.status(400);
     throw new Error('Client ID is required');
+  }
+
+  let parsedCreatedAt;
+  if (createdAt !== undefined && createdAt !== null && createdAt !== '') {
+    parsedCreatedAt = new Date(createdAt);
+    if (Number.isNaN(parsedCreatedAt.getTime())) {
+      res.status(400);
+      throw new Error('Invalid createdAt. Use a valid date string or timestamp.');
+    }
   }
 
   const wage = new Wage({
@@ -32,6 +42,7 @@ const createWage = asyncHandler(async (req, res) => {
     machineType,
     advanceamount,
     clientId,
+    ...(parsedCreatedAt ? { createdAt: parsedCreatedAt } : {}),
   });
 
   const createdWage = await wage.save();

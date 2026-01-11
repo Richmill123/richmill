@@ -15,12 +15,23 @@ const createOrder = asyncHandler(async (req, res) => {
     typeOfPaddy,
     numberOfBags,
     clientId,
-    status = 'CREATED'
+    splittingincome,
+    status = 'CREATED',
+    createdAt,
   } = req.body;
 
   if (!clientId) {
     res.status(400);
     throw new Error('Client ID is required');
+  }
+
+  let parsedCreatedAt;
+  if (createdAt !== undefined && createdAt !== null && createdAt !== '') {
+    parsedCreatedAt = new Date(createdAt);
+    if (Number.isNaN(parsedCreatedAt.getTime())) {
+      res.status(400);
+      throw new Error('Invalid createdAt. Use a valid date string or timestamp.');
+    }
   }
 
   const order = new Order({
@@ -34,7 +45,8 @@ const createOrder = asyncHandler(async (req, res) => {
     typeOfPaddy,
     clientId,
     status,
-    createdAt: new Date()
+    splittingincome,
+    ...(parsedCreatedAt ? { createdAt: parsedCreatedAt } : {}),
   });
 
   const createdOrder = await order.save();
@@ -87,7 +99,8 @@ const updateOrder = asyncHandler(async (req, res) => {
     typeOfPaddy,
     numberOfBags,
     status,
-    clientId 
+    clientId,
+    splittingincome 
   } = req.body;
   
   if (!clientId) {
@@ -112,6 +125,7 @@ const updateOrder = asyncHandler(async (req, res) => {
   if (typeOfPaddy) order.typeOfPaddy = typeOfPaddy;
   if (numberOfBags) order.numberOfBags = numberOfBags;
   if (status) order.status = status;
+  if (splittingincome) order.splittingincome = splittingincome; 
 
   const updatedOrder = await order.save();
   res.json(updatedOrder);

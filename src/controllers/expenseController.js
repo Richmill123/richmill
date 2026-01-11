@@ -14,11 +14,21 @@ const createExpense = asyncHandler(async (req, res) => {
     paymentMethod,
     receiptNumber,
     clientId,
+    createdAt,
   } = req.body;
 
   if (!clientId) {
     res.status(400);
     throw new Error('Client ID is required');
+  }
+
+  let parsedCreatedAt;
+  if (createdAt !== undefined && createdAt !== null && createdAt !== '') {
+    parsedCreatedAt = new Date(createdAt);
+    if (Number.isNaN(parsedCreatedAt.getTime())) {
+      res.status(400);
+      throw new Error('Invalid createdAt. Use a valid date string or timestamp.');
+    }
   }
 
   const expense = new Expense({
@@ -31,6 +41,7 @@ const createExpense = asyncHandler(async (req, res) => {
     receiptNumber,
     clientId,
     recordedBy: req.user?._id,
+    ...(parsedCreatedAt ? { createdAt: parsedCreatedAt } : {}),
   });
 
   const createdExpense = await expense.save();
