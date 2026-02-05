@@ -54,6 +54,9 @@ const wageSchema = new mongoose.Schema(
     date: {
       type: Date
     },
+    note: {
+      type: String
+    }
   },
   {
     timestamps: true,

@@ -9,7 +9,10 @@ const createIncome = asyncHandler(async (req, res) => {
     item,
     description,
     amount,
+    category,
     date,
+    paymentMethod,
+    receiptNumber,
     clientId,
     createdAt,
   } = req.body;
@@ -32,7 +35,10 @@ const createIncome = asyncHandler(async (req, res) => {
     item,
     description,
     amount,
+    category: category || 'Other',
     date: date || Date.now(),
+    paymentMethod: paymentMethod || 'Cash',
+    receiptNumber,
     clientId,
     recordedBy: req.user?._id,
     ...(parsedCreatedAt ? { createdAt: parsedCreatedAt } : {}),
@@ -88,7 +94,10 @@ const updateIncome  = asyncHandler(async (req, res) => {
     item,
     description,
     amount,
-    date
+    category,
+    date,
+    paymentMethod,
+    receiptNumber,
   } = req.body;
   
   if (!clientId) {
@@ -107,7 +116,10 @@ const updateIncome  = asyncHandler(async (req, res) => {
     income.item = item || income.item;
     income.description = description || income.description;
     income.amount = amount || income.amount;
+    income.category = category || income.category;
     income.date = date || income.date;
+    income.paymentMethod = paymentMethod || income.paymentMethod;
+    income.receiptNumber = receiptNumber || income.receiptNumber;
 
     const updatedIncome = await income.save();
     res.json(updatedIncome);

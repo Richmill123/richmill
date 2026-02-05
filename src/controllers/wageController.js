@@ -17,7 +17,8 @@ const createWage = asyncHandler(async (req, res) => {
     advanceamount,
     clientId,
     createdAt,
-    advancedebtamount
+    advancedebtamount,
+    note
   } = req.body;
 
   if (!clientId) {
@@ -45,6 +46,7 @@ const createWage = asyncHandler(async (req, res) => {
     advanceamount,
     advancedebtamount,
     date,
+    note,
     clientId,
     ...(parsedCreatedAt ? { createdAt: parsedCreatedAt } : {}),
   });
@@ -111,7 +113,7 @@ const updateWage = asyncHandler(async (req, res) => {
     wage.machineType = machineType || wage.machineType;
     wage.advanceamount = advanceamount || wage.advanceamount;
     wage.advancedebtamount = advancedebtamount || wage.advancedebtamount;
-
+    wage.note = note || wage.note;
     const updatedWage = await wage.save();
     res.json(updatedWage);
   } else {
