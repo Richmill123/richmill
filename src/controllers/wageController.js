@@ -91,7 +91,7 @@ const getWages = asyncHandler(async (req, res) => {
 // @route   PUT /api/wages/:id
 // @access  Private
 const updateWage = asyncHandler(async (req, res) => {
-  const { advanceWage, totalWage, bags, typeOfWork, machineType, advanceamount, advancedebtamount, clientId } = req.body;
+  const { advanceWage, totalWage, bags, typeOfWork, machineType, advanceamount, advancedebtamount, clientId, note } = req.body;
   
   if (!clientId) {
     res.status(400);
