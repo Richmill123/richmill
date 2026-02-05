@@ -21,9 +21,21 @@ const incomeSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    category: {
+      type: String
+    },
     date: {
       type: Date,
       default: Date.now,
+    },
+    paymentMethod: {
+      type: String,
+      enum: ['Cash', 'Bank Transfer', 'UPI', 'Cheque', 'Other'],
+      default: 'Cash',
+    },
+    receiptNumber: {
+      type: String,
+      trim: true,
     },
     recordedBy: {
       type: mongoose.Schema.Types.ObjectId,
