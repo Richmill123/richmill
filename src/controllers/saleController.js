@@ -13,6 +13,7 @@ const createSale = asyncHandler(async (req, res) => {
     items,
     paymentStatus,
     paymentMethod,
+    mydebt,
     clientId,
   } = req.body;
 
@@ -37,6 +38,7 @@ const createSale = asyncHandler(async (req, res) => {
       amount: item.quantity * item.rate
     })),
     totalAmount,
+    mydebt,
     clientId,
     paymentStatus: paymentStatus || 'Pending',
     paymentMethod: paymentMethod || 'Cash',
@@ -82,18 +84,34 @@ const getSales = asyncHandler(async (req, res) => {
  const query = { clientId: clientId.trim() };
   
   // Add date filtering if startDate and/or endDate are provided
+  // But also include records where mydebt exists and totalAmount === mydebt (and mydebt !== 0)
   if (startDate || endDate) {
-    query.createdAt = {};
+    // Create two separate queries: one for date-filtered records, one for debt records
+    const dateQuery = { clientId: clientId.trim() };
+    const debtQuery = { 
+      clientId: clientId.trim(),
+      mydebt: { $exists: true, $ne: 0 },
+      $expr: { $ne: [{ $subtract: ['$totalAmount', '$mydebt'] }, 0] }
+    };
+    
+    // Add date filters to dateQuery
     if (startDate) {
       const startOfDay = new Date(startDate);
       startOfDay.setHours(0, 0, 0, 0);
-      query.createdAt.$gte = startOfDay;
+      dateQuery.createdAt = { ...dateQuery.createdAt, $gte: startOfDay };
     }
     if (endDate) {
       const endOfDay = new Date(endDate);
       endOfDay.setHours(23, 59, 59, 999);
-      query.createdAt.$lte = endOfDay;
+      dateQuery.createdAt = { ...dateQuery.createdAt, $lte: endOfDay };
     }
+    
+    // Use $or to combine both queries
+    query = {
+      $or: [dateQuery, debtQuery]
+    };
+  } else {
+    query = { clientId: clientId.trim() };
   }
 
   const sales = await Sale.find(query).sort({ createdAt: -1 });
@@ -111,6 +129,7 @@ const updateSale = asyncHandler(async (req, res) => {
     items,
     paymentStatus,
     paymentMethod,
+    mydebt,
     clientId 
   } = req.body;
   
@@ -130,6 +149,7 @@ const updateSale = asyncHandler(async (req, res) => {
   if (name) sale.name = name;
   if (phoneNumber) sale.phoneNumber = phoneNumber;
   if (address) sale.address = address;
+  if (mydebt) sale.mydebt = mydebt;
   
   // Update payment info
   if (paymentStatus) sale.paymentStatus = paymentStatus;

@@ -44,6 +44,10 @@ const saleSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    mydebt: {
+      type: Number,
+      required: true,
+    },
     paymentStatus: {
       type: String,
       enum: ['Paid', 'Pending', 'Partially Paid'],
