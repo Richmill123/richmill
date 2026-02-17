@@ -87,7 +87,7 @@ const getSales = asyncHandler(async (req, res) => {
   // But also include records where mydebt exists and totalAmount === mydebt (and mydebt !== 0)
   if (startDate || endDate) {
     // Create two separate queries: one for date-filtered records, one for debt records
-    const dateQuery = { clientId: clientId.trim() };
+    //const dateQuery = { clientId: clientId.trim() };
     const debtQuery = { 
       clientId: clientId.trim(),
       mydebt: { $exists: true, $ne: null, $ne: 0 },
