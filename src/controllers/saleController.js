@@ -90,8 +90,8 @@ const getSales = asyncHandler(async (req, res) => {
     const dateQuery = { clientId: clientId.trim() };
     const debtQuery = { 
       clientId: clientId.trim(),
-      mydebt: { $exists: true, $ne: 0 },
-      $expr: { $ne: [{ $subtract: ['$totalAmount', '$mydebt'] }, 0] }
+      mydebt: { $exists: true, $ne: null, $ne: 0 },
+      $expr: { $ne: [{ $subtract: ['$totalAmount', { $ifNull: ['$mydebt', 0] }] }, 0] }
     };
     
     // Add date filters to dateQuery
