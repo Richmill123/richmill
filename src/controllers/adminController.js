@@ -261,7 +261,7 @@ const getDashboard = asyncHandler(async (req, res) => {
       {
         $match: {
           clientId: clientIdTrimmed,
-          createdAt: { $gte: todayStart, $lte: todayEnd },
+          updatedAt: { $gte: todayStart, $lte: todayEnd },
         },
       },
       {
@@ -277,7 +277,7 @@ const getDashboard = asyncHandler(async (req, res) => {
         $match: {
           clientId: clientIdTrimmed,
           status: { $in: ['CREATED', 'INITIAL STOCKING'] },
-          createdAt: { $lt: todayStart },
+          updatedAt: { $lt: todayStart },
         },
       },
       {
@@ -292,7 +292,7 @@ const getDashboard = asyncHandler(async (req, res) => {
       {
         $match: {
           clientId: clientIdTrimmed,
-          createdAt: { $gte: todayStart, $lte: todayEnd },
+          updatedAt: { $gte: todayStart, $lte: todayEnd },
         },
       },
       {
