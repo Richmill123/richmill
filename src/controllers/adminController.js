@@ -292,7 +292,7 @@ const getDashboard = asyncHandler(async (req, res) => {
       {
         $match: {
           clientId: clientIdTrimmed,
-          createdAt: { $gte: todayStart, $lte: todayEnd },
+          updatedAt: { $gte: todayStart, $lte: todayEnd },
         },
       },
       {
