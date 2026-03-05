@@ -277,7 +277,7 @@ const getDashboard = asyncHandler(async (req, res) => {
         $match: {
           clientId: clientIdTrimmed,
           status: { $in: ['CREATED', 'INITIAL STOCKING'] },
-          updatedAt: { $lt: todayStart },
+          createdAt: { $lt: todayStart },
         },
       },
       {
