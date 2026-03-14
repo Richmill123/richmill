@@ -345,10 +345,7 @@ const getDashboard = asyncHandler(async (req, res) => {
       },
     ]),
     Expense.aggregate([
-      { $match: {
-          clientId: clientIdTrimmed,
-          updatedAt: { $gte: todayStart, $lte: todayEnd },
-        }, },
+      { $match: expenseMatch },
       {
         $group: {
           _id: null,
