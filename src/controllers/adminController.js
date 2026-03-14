@@ -206,7 +206,7 @@ const getDashboard = asyncHandler(async (req, res) => {
     yearMatch.createdAt = { $gte: monthStart, $lte: monthEnd };
     yearIncomeMatch.date = { $gte: monthStart, $lte: monthEnd };
   }
-
+  console.log('Filter:', JSON.stringify(expenseMatch));
   const [
     paidOrderAgg,
     processedOrderAgg,
@@ -528,7 +528,7 @@ const getDashboard = asyncHandler(async (req, res) => {
   const boilingCompleted = boilingCompletedAgg?.[0] || { totalBags: 0, count: 0 };
   const splittingCompleted = splittingCompletedAgg?.[0] || { totalBags: 0, count: 0 };
   const packedReady = packedReadyAgg?.[0] || { totalBags: 0, count: 0 };
-
+console.log('Expense value:', JSON.stringify(expenses));
   const salesByItemType = {
     bran: { quantity: 0, amount: 0 },
     husk: { quantity: 0, amount: 0 },
@@ -567,7 +567,7 @@ const getDashboard = asyncHandler(async (req, res) => {
   const expenseSalary = salaries.totalSalary || 0;
   const expenseOther = expenses.totalExpense || 0;
   const expenseTotal = expenseWages + expenseSalary + expenseOther;
-
+console.log('Total Expense value:', expenseTotal);
   const todaySummaryTotalOrder = pendingOrdersExcludingToday.totalBags || 0;
   const todaySummaryPaddyTaken = todayWageBags.totalBags || 0;
   const todaySummaryNewOrder = todayCreatedOrders.totalBags || 0;
