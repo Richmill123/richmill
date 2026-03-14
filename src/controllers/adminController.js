@@ -149,20 +149,20 @@ const getDashboard = asyncHandler(async (req, res) => {
 
   const now = new Date();
   const rangeStart = startDate
-    ? (() => {
-        const d = new Date(startDate);
-        d.setHours(0, 0, 0, 0);
-        return d;
-      })()
-    : new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  ? new Date(Date.UTC(
+      new Date(startDate).getUTCFullYear(),
+      new Date(startDate).getUTCMonth(),
+      new Date(startDate).getUTCDate()
+    ))
+  : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
-  const rangeEnd = endDate
-    ? (() => {
-        const d = new Date(endDate);
-        d.setHours(23, 59, 59, 999);
-        return d;
-      })()
-    : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+const rangeEnd = endDate
+  ? new Date(Date.UTC(
+      new Date(endDate).getUTCFullYear(),
+      new Date(endDate).getUTCMonth(),
+      new Date(endDate).getUTCDate() + 1
+    ))
+  : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 
   const createdAtFilter = { $gte: rangeStart, $lte: rangeEnd };
 
