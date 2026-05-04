@@ -71,6 +71,7 @@ const addStockItem = asyncHandler(async (req, res) => {
   const existingItem = await Stock.findOne({ itemType, clientId });
   if (existingItem) {
     res.status(400);
+    console.log('dvvrve');
     throw new Error('This item type already exists for this client');
   }
 
@@ -102,8 +103,13 @@ const deleteStockItem = asyncHandler(async (req, res) => {
     throw new Error('Stock item not found or does not belong to this client');
   }
 
-  await stockItem.deleteOne();
-  res.json({ message: 'Stock item removed' });
+  if (stockItem) {
+    await stockItem.deleteOne({ _id: req.params.id });
+    res.json({ message: 'Stock item removed' });
+  } else {
+    res.status(404);
+    throw new Error('Stock item not found');
+  }
 });
 
 export {

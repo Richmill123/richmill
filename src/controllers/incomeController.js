@@ -75,6 +75,7 @@ const getIncome  = asyncHandler(async (req, res) => {
       query.createdAt.$lte = endOfDay;
     }
   }
+  console.log("Query:", query);
   if (category) {
     query.category = category;
   }
@@ -111,16 +112,21 @@ const updateIncome  = asyncHandler(async (req, res) => {
     throw new Error('Income not found or does not belong to this client');
   }
 
-  income.item = item || income.item;
-  income.description = description || income.description;
-  income.amount = amount ?? income.amount;
-  income.category = category || income.category;
-  income.date = date || income.date;
-  income.paymentMethod = paymentMethod || income.paymentMethod;
-  income.receiptNumber = receiptNumber || income.receiptNumber;
+  if (income) {
+    income.item = item || income.item;
+    income.description = description || income.description;
+    income.amount = amount || income.amount;
+    income.category = category || income.category;
+    income.date = date || income.date;
+    income.paymentMethod = paymentMethod || income.paymentMethod;
+    income.receiptNumber = receiptNumber || income.receiptNumber;
 
-  const updatedIncome = await income.save();
-  res.json(updatedIncome);
+    const updatedIncome = await income.save();
+    res.json(updatedIncome);
+  } else {
+    res.status(404);
+    throw new Error('Income not found');
+  }
 });
 
 // @desc    Delete an income
@@ -141,8 +147,13 @@ const deleteIncome  = asyncHandler(async (req, res) => {
     throw new Error('Income not found or does not belong to this client');
   }
 
-  await income.deleteOne();
-  res.json({ message: 'Income removed' });
+  if (income) {
+    await income.deleteOne({ _id: req.params.id });
+    res.json({ message: 'Income removed' });
+  } else {
+    res.status(404);
+    throw new Error('Income not found');
+  }
 });
 
 
