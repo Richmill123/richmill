@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
-import generateToken from '../utils/generateToken.js';
+import crypto from 'crypto';
+import generateToken, { generateTokenPair, verifyToken } from '../utils/generateToken.js';
 import Admin from '../models/adminModel.js';
 import Order from '../models/orderModel.js';
 import Sale from '../models/saleModel.js';
@@ -8,14 +9,15 @@ import Expense from '../models/expenseModel.js';
 import Stock from '../models/stockModel.js';
 import Employee from '../models/employeeModel.js';
 import Income from '../models/incomeModel.js';
+import Billing from '../models/billingModel.js';
+import Purchase from '../models/purchaseModel.js';
 
 // @desc    Create a new admin
 // @route   POST /api/admins
 // @access  Private/Admin
 const createAdmin = asyncHandler(async (req, res) => {
-  const { name, username, password } = req.body;
+  const { name, username, password, type, email, role } = req.body;
 
-  // Check if username already exists for this client
   const adminExists = await Admin.findOne({ username });
 
   if (adminExists) {
@@ -26,7 +28,9 @@ const createAdmin = asyncHandler(async (req, res) => {
   const admin = await Admin.create({
     name,
     username,
-    password
+    password,
+    type: type || 'merchant_mill',
+    ...(email && { email }),
   });
 
   if (admin) {
@@ -34,8 +38,8 @@ const createAdmin = asyncHandler(async (req, res) => {
       _id: admin._id,
       name: admin.name,
       username: admin.username,
+      type: admin.type,
       active: admin.active,
-      token: generateToken(admin._id),
     });
   } else {
     res.status(400);
@@ -56,19 +60,14 @@ const getAdmins = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const deleteAdmin = asyncHandler(async (req, res) => {
   const admin = await Admin.findById(req.params.id);
-  
+
   if (!admin) {
     res.status(404);
     throw new Error('Admin not found');
   }
 
-  if (admin) {
-    await admin.remove();
-    res.json({ message: 'Admin removed' });
-  } else {
-    res.status(404);
-    throw new Error('Admin not found');
-  }
+  await admin.deleteOne();
+  res.json({ message: 'Admin removed' });
 });
 
 // @desc    Toggle admin active status
@@ -82,19 +81,15 @@ const toggleAdminStatus = asyncHandler(async (req, res) => {
     throw new Error('Admin not found');
   }
 
-  if (admin) {
-    admin.active = !admin.active;
-    const updatedAdmin = await admin.save();
-    res.json({
-      _id: updatedAdmin._id,
-      name: updatedAdmin.name,
-      username: updatedAdmin.username,
-      active: updatedAdmin.active,
-    });
-  } else {
-    res.status(404);
-    throw new Error('Admin not found');
-  }
+  admin.active = !admin.active;
+  const updatedAdmin = await admin.save();
+  res.json({
+    _id: updatedAdmin._id,
+    name: updatedAdmin.name,
+    username: updatedAdmin.username,
+    type: updatedAdmin.type,
+    active: updatedAdmin.active,
+  });
 });
 
 // @desc    Auth admin & get token
@@ -106,35 +101,152 @@ const authAdmin = asyncHandler(async (req, res) => {
   const admin = await Admin.findOne({ username });
 
   if (admin && (await admin.matchPassword(password))) {
+    admin.lastLogin = new Date();
+    await admin.save({ validateBeforeSave: false });
+
+    const tokens = generateTokenPair(admin._id);
+
     res.json({
       _id: admin._id,
       name: admin.name,
       username: admin.username,
-      token: generateToken(admin._id),
+      email: admin.email,
+      type: admin.type,
+      active: admin.active,
+      lastLogin: admin.lastLogin,
+      ...tokens,
     });
   } else {
     res.status(401);
-    throw new Error('Invalid email or password');
+    throw new Error('Invalid username or password');
   }
+});
+
+// @desc    Forgot password
+// @route   POST /api/admins/forgot-password
+// @access  Public
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  
+  const admin = await Admin.findOne({ email });
+  
+  if (!admin) {
+    res.status(404);
+    throw new Error('No admin found with that email');
+  }
+  
+  // Generate reset token
+  const resetToken = admin.createPasswordResetToken();
+  await admin.save({ validateBeforeSave: false });
+  
+  // In production, send email with reset token
+  console.log(`Password reset token for ${admin.email}: ${resetToken}`);
+  
+  res.json({
+    message: 'Password reset token sent to email',
+    // In development, include token for testing
+    ...(process.env.NODE_ENV === 'development' && { resetToken })
+  });
+});
+
+// @desc    Reset password
+// @route   POST /api/admins/reset-password
+// @access  Public
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body;
+
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+  
+  const admin = await Admin.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now() }
+  });
+  
+  if (!admin) {
+    res.status(400);
+    throw new Error('Invalid or expired reset token');
+  }
+  
+  // Set new password
+  admin.password = password;
+  admin.clearPasswordResetFields();
+  admin.loginAttempts = 0;
+  admin.lockUntil = undefined;
+  
+  await admin.save();
+  
+  res.json({
+    message: 'Password reset successful'
+  });
+});
+
+// @desc    Refresh token
+// @route   POST /api/admins/refresh-token
+// @access  Public
+const refreshToken = asyncHandler(async (req, res) => {
+  const { refreshToken: token } = req.body;
+
+  if (!token) {
+    res.status(401);
+    throw new Error('Refresh token required');
+  }
+
+  try {
+    const decoded = verifyToken(token);
+    const admin = await Admin.findById(decoded.id).select('-password');
+
+    if (!admin || !admin.active) {
+      res.status(401);
+      throw new Error('Invalid refresh token');
+    }
+
+    const tokens = generateTokenPair(admin._id);
+    res.json(tokens);
+  } catch (error) {
+    res.status(401);
+    throw new Error('Invalid refresh token');
+  }
+});
+
+// @desc    Logout admin
+// @route   POST /api/admins/logout
+// @access  Private
+const logout = asyncHandler(async (req, res) => {
+  // Token is blacklisted in middleware
+  res.json({
+    message: 'Logged out successfully'
+  });
 });
 
 // @desc    Get admin profile
 // @route   GET /api/admins/profile
-// @access  Private
+// @access  Public (no JWT required)
 const getAdminProfile = asyncHandler(async (req, res) => {
-  const admin = await Admin.findById(req.admin._id).select('-password');
+  // Try to get admin ID from query params first, then from req.admin if available
+  const adminId = req.query.adminId || (req.admin && req.admin._id);
   
-  if (admin) {
-    res.json({
-      _id: admin._id,
-      name: admin.name,
-      username: admin.username,
-      active: admin.active
-    });
-  } else {
+  if (!adminId) {
+    res.status(400);
+    throw new Error('Admin ID is required. Provide it as query parameter ?adminId=<id>');
+  }
+
+  const admin = await Admin.findById(adminId).select('-password');
+  
+  if (!admin) {
     res.status(404);
     throw new Error('Admin not found');
   }
+
+  res.json({
+    _id: admin._id,
+    name: admin.name,
+    username: admin.username,
+    email: admin.email,
+    type: admin.type,
+    active: admin.active,
+    createdAt: admin.createdAt,
+    lastLogin: admin.lastLogin,
+  });
 });
 
 const getDashboard = asyncHandler(async (req, res) => {
@@ -152,7 +264,7 @@ const getDashboard = asyncHandler(async (req, res) => {
   ? new Date(Date.UTC(
       new Date(startDate).getUTCFullYear(),
       new Date(startDate).getUTCMonth(),
-      new Date(startDate).getUTCDate()
+      new Date(startDate).getUTCDate(),5,30,0
     ))
   : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
@@ -206,7 +318,6 @@ const rangeEnd = endDate
     yearMatch.createdAt = { $gte: monthStart, $lte: monthEnd };
     yearIncomeMatch.date = { $gte: monthStart, $lte: monthEnd };
   }
-  console.log('Filter:', JSON.stringify(expenseMatch));
   const [
     paidOrderAgg,
     processedOrderAgg,
@@ -226,10 +337,11 @@ const rangeEnd = endDate
     yearIncomeAgg,
     yearSalesByItemAgg,
     stockDocs,
-    initialStockingAgg,
-    boilingCompletedAgg,
-    splittingCompletedAgg,
-    packedReadyAgg,
+    orderStatusesAgg,
+    paidBillingAgg,
+    purchaseRangeAgg,
+    yearBillingAgg,
+    yearPurchaseAgg,
   ] = await Promise.all([
     Order.aggregate([
       {
@@ -452,63 +564,44 @@ const rangeEnd = endDate
       },
     ]),
     Stock.find({ clientId: clientIdTrimmed }).select('itemType availableQuantity'),
+    // Dynamic: group orders by their actual status value
     Order.aggregate([
-      {
-        $match: {
-          ...orderMatch,
-          status: 'INITIAL STOCKING',
-        },
-      },
+      { $match: orderMatch },
       {
         $group: {
-          _id: null,
-          totalBags: { $sum: '$numberOfBags' },
+          _id: '$status',
           count: { $sum: 1 },
+          totalBags: { $sum: '$numberOfBags' },
         },
       },
     ]),
-    Order.aggregate([
-      {
-        $match: {
-          ...orderMatch,
-          status: 'BOILING PROCESS COMPLETED',
-        },
-      },
+    // Paid billing invoices in date range (contributes to revenue)
+    Billing.aggregate([
+      { $match: { clientId: clientIdTrimmed, status: 'paid', invoiceDate: createdAtFilter } },
+      { $group: { _id: null, totalAmount: { $sum: '$totalAmount' }, count: { $sum: 1 } } },
+    ]),
+    // Purchases in date range (contributes to expense)
+    Purchase.aggregate([
+      { $match: { clientId: clientIdTrimmed, purchaseDate: createdAtFilter } },
+      { $group: { _id: null, totalAmount: { $sum: '$totalAmount' }, count: { $sum: 1 } } },
+    ]),
+    // Yearly paid billing by month
+    Billing.aggregate([
+      { $match: { clientId: clientIdTrimmed, status: 'paid', invoiceDate: { $gte: yearStart, $lt: yearEndExclusive } } },
       {
         $group: {
-          _id: null,
-          totalBags: { $sum: '$numberOfBags' },
-          count: { $sum: 1 },
+          _id: monthFilter ? null : { $month: '$invoiceDate' },
+          totalAmount: { $sum: '$totalAmount' },
         },
       },
     ]),
-    Order.aggregate([
-      {
-        $match: {
-          ...orderMatch,
-          status: 'SPLITTING PROCESS COMPLETED',
-        },
-      },
+    // Yearly purchases by month
+    Purchase.aggregate([
+      { $match: { clientId: clientIdTrimmed, purchaseDate: { $gte: yearStart, $lt: yearEndExclusive } } },
       {
         $group: {
-          _id: null,
-          totalBags: { $sum: '$numberOfBags' },
-          count: { $sum: 1 },
-        },
-      },
-    ]),
-    Order.aggregate([
-      {
-        $match: {
-          ...orderMatch,
-          status: 'PACKED & READY',
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalBags: { $sum: '$numberOfBags' },
-          count: { $sum: 1 },
+          _id: monthFilter ? null : { $month: '$purchaseDate' },
+          totalAmount: { $sum: '$totalAmount' },
         },
       },
     ]),
@@ -524,12 +617,18 @@ const rangeEnd = endDate
   const expenses = expensesAgg?.[0] || { totalExpense: 0, count: 0 };
   const incomes = incomeAgg?.[0] || { totalIncome: 0, count: 0 };
   const salaries = salaryAgg?.[0] || { totalSalary: 0, count: 0 };
-  const initialStocking = initialStockingAgg?.[0] || { totalBags: 0, count: 0 };
-  const boilingCompleted = boilingCompletedAgg?.[0] || { totalBags: 0, count: 0 };
-  const splittingCompleted = splittingCompletedAgg?.[0] || { totalBags: 0, count: 0 };
-  const packedReady = packedReadyAgg?.[0] || { totalBags: 0, count: 0 };
-console.log('Expense value:', JSON.stringify(expenses));
-  const salesByItemType = {
+
+  // Build a dynamic dictionary keyed by actual status value stored in DB
+  const orderStatusesDict = {};
+  for (const row of orderStatusesAgg || []) {
+    if (row._id) {
+      orderStatusesDict[row._id] = {
+        count: row.count || 0,
+        totalBags: row.totalBags || 0,
+      };
+    }
+  }
+const salesByItemType = {
     bran: { quantity: 0, amount: 0 },
     husk: { quantity: 0, amount: 0 },
     'black rice': { quantity: 0, amount: 0 },
@@ -558,17 +657,21 @@ console.log('Expense value:', JSON.stringify(expenses));
     stockByItemType[key] = s.availableQuantity || 0;
   }
 
-  const revenueOrders = paidOrders.totalAmount || 0;
-  const revenueSales = paidSales.totalAmount || 0;
-  const revenueIncome = incomes.totalIncome || 0;
-  const revenueTotal = revenueOrders + revenueSales + revenueIncome;
+  const paidBillings  = paidBillingAgg?.[0]  || { totalAmount: 0, count: 0 };
+  const purchaseRange = purchaseRangeAgg?.[0] || { totalAmount: 0, count: 0 };
 
-  const expenseWages = wages.totalWage || 0;
-  const expenseSalary = salaries.totalSalary || 0;
-  const expenseOther = expenses.totalExpense || 0;
-  const expenseTotal = expenseWages + expenseSalary + expenseOther;
-console.log('Total Expense value:', expenseTotal);
-  const todaySummaryTotalOrder = pendingOrdersExcludingToday.totalBags || 0;
+  const revenueOrders  = paidOrders.totalAmount    || 0;
+  const revenueSales   = paidSales.totalAmount      || 0;
+  const revenueIncome  = incomes.totalIncome        || 0;
+  const revenueBilling = paidBillings.totalAmount   || 0;
+  const revenueTotal   = revenueOrders + revenueSales + revenueIncome + revenueBilling;
+
+  const expenseWages    = wages.totalWage         || 0;
+  const expenseSalary   = salaries.totalSalary    || 0;
+  const expenseOther    = expenses.totalExpense   || 0;
+  const expensePurchase = purchaseRange.totalAmount || 0;
+  const expenseTotal    = expenseWages + expenseSalary + expenseOther + expensePurchase;
+const todaySummaryTotalOrder = pendingOrdersExcludingToday.totalBags || 0;
   const todaySummaryPaddyTaken = todayWageBags.totalBags || 0;
   const todaySummaryNewOrder = todayCreatedOrders.totalBags || 0;
   const todaySummaryOutput = todaySummaryTotalOrder - todaySummaryPaddyTaken + todaySummaryNewOrder;
@@ -584,8 +687,8 @@ console.log('Total Expense value:', expenseTotal);
 
     return {
       month: i + 1,
-      revenue: { orders: 0, sales: 0, total: 0 },
-      expense: { wages: 0, salary: expenseSalary, other: 0, total: 0 },
+      revenue: { orders: 0, sales: 0, billing: 0, total: 0 },
+      expense: { wages: 0, salary: expenseSalary, other: 0, purchase: 0, total: 0 },
       profit: 0,
       sales: { byItemType },
     };
@@ -596,8 +699,8 @@ console.log('Total Expense value:', expenseTotal);
     // Single month data - create one month entry
     const singleMonthData = {
       month: monthFilter,
-      revenue: { orders: 0, sales: 0, total: 0 },
-      expense: { wages: 0, salary: expenseSalary, other: 0, total: 0 },
+      revenue: { orders: 0, sales: 0, billing: 0, total: 0 },
+      expense: { wages: 0, salary: expenseSalary, other: 0, purchase: 0, total: 0 },
       profit: 0,
       sales: { byItemType: {
         bran: { quantity: 0, amount: 0 },
@@ -615,11 +718,17 @@ console.log('Total Expense value:', expenseTotal);
     if (yearPaidSalesAgg?.[0]) {
       singleMonthData.revenue.sales = yearPaidSalesAgg[0].totalAmount || 0;
     }
+    if (yearBillingAgg?.[0]) {
+      singleMonthData.revenue.billing = yearBillingAgg[0].totalAmount || 0;
+    }
     if (yearWagesAgg?.[0]) {
       singleMonthData.expense.wages = yearWagesAgg[0].totalWage || 0;
     }
     if (yearExpensesAgg?.[0]) {
       singleMonthData.expense.other = yearExpensesAgg[0].totalExpense || 0;
+    }
+    if (yearPurchaseAgg?.[0]) {
+      singleMonthData.expense.purchase = yearPurchaseAgg[0].totalAmount || 0;
     }
 
     // Process sales by item type for single month
@@ -631,20 +740,22 @@ console.log('Total Expense value:', expenseTotal);
       }
     }
 
-    singleMonthData.revenue.total = (singleMonthData.revenue.orders || 0) + (singleMonthData.revenue.sales || 0) + (yearIncomeAgg?.[0]?.totalIncome || 0);
-    singleMonthData.expense.total = (singleMonthData.expense.wages || 0) + (singleMonthData.expense.salary || 0) + (singleMonthData.expense.other || 0);
+    singleMonthData.revenue.total = (singleMonthData.revenue.orders || 0) + (singleMonthData.revenue.sales || 0) + (yearIncomeAgg?.[0]?.totalIncome || 0) + (singleMonthData.revenue.billing || 0);
+    singleMonthData.expense.total = (singleMonthData.expense.wages || 0) + (singleMonthData.expense.salary || 0) + (singleMonthData.expense.other || 0) + (singleMonthData.expense.purchase || 0);
     singleMonthData.profit = singleMonthData.revenue.total - singleMonthData.expense.total;
 
     res.json({
       revenue: {
         orders: revenueOrders,
         sales: revenueSales,
+        billing: revenueBilling,
         total: revenueTotal,
       },
       expense: {
         wages: expenseWages,
         salary: expenseSalary,
         other: expenseOther,
+        purchase: expensePurchase,
         total: expenseTotal,
       },
       profit: revenueTotal - expenseTotal,
@@ -664,24 +775,7 @@ console.log('Total Expense value:', expenseTotal);
       stock: {
         available: stockByItemType,
       },
-      orderStatuses: {
-        initialStocking: {
-          totalBags: initialStocking.totalBags || 0,
-          count: initialStocking.count || 0,
-        },
-        boilingCompleted: {
-          totalBags: boilingCompleted.totalBags || 0,
-          count: boilingCompleted.count || 0,
-        },
-        splittingCompleted: {
-          totalBags: splittingCompleted.totalBags || 0,
-          count: splittingCompleted.count || 0,
-        },
-        packedReady: {
-          totalBags: packedReady.totalBags || 0,
-          count: packedReady.count || 0,
-        },
-      },
+      orderStatuses: orderStatusesDict,
       yearly: {
         year: yearNumber,
         months: [singleMonthData],
@@ -699,6 +793,10 @@ console.log('Total Expense value:', expenseTotal);
     const idx = (row._id || 0) - 1;
     if (yearMonths[idx]) yearMonths[idx].revenue.sales = row.totalAmount || 0;
   }
+  for (const row of yearBillingAgg || []) {
+    const idx = (row._id || 0) - 1;
+    if (yearMonths[idx]) yearMonths[idx].revenue.billing = row.totalAmount || 0;
+  }
   for (const row of yearWagesAgg || []) {
     const idx = (row._id || 0) - 1;
     if (yearMonths[idx]) yearMonths[idx].expense.wages = row.totalWage || 0;
@@ -706,6 +804,10 @@ console.log('Total Expense value:', expenseTotal);
   for (const row of yearExpensesAgg || []) {
     const idx = (row._id || 0) - 1;
     if (yearMonths[idx]) yearMonths[idx].expense.other = row.totalExpense || 0;
+  }
+  for (const row of yearPurchaseAgg || []) {
+    const idx = (row._id || 0) - 1;
+    if (yearMonths[idx]) yearMonths[idx].expense.purchase = row.totalAmount || 0;
   }
   for (const row of yearSalesByItemAgg || []) {
     const idx = (row._id?.month || 0) - 1;
@@ -723,8 +825,8 @@ console.log('Total Expense value:', expenseTotal);
 
   for (const m of yearMonths) {
     const monthIncome = yearIncomeAgg?.find(row => (row._id || 0) === m.month)?.totalIncome || 0;
-    m.revenue.total = (m.revenue.orders || 0) + (m.revenue.sales || 0) + monthIncome;
-    m.expense.total = (m.expense.wages || 0) + (m.expense.salary || 0) + (m.expense.other || 0);
+    m.revenue.total = (m.revenue.orders || 0) + (m.revenue.sales || 0) + (m.revenue.billing || 0) + monthIncome;
+    m.expense.total = (m.expense.wages || 0) + (m.expense.salary || 0) + (m.expense.other || 0) + (m.expense.purchase || 0);
     m.profit = m.revenue.total - m.expense.total;
   }
 
@@ -732,12 +834,14 @@ console.log('Total Expense value:', expenseTotal);
     revenue: {
       orders: revenueOrders,
       sales: revenueSales,
+      billing: revenueBilling,
       total: revenueTotal,
     },
     expense: {
       wages: expenseWages,
       salary: expenseSalary,
       other: expenseOther,
+      purchase: expensePurchase,
       total: expenseTotal,
     },
     profit: revenueTotal - expenseTotal,
@@ -757,24 +861,7 @@ console.log('Total Expense value:', expenseTotal);
     stock: {
       available: stockByItemType,
     },
-    orderStatuses: {
-      initialStocking: {
-        totalBags: initialStocking.totalBags || 0,
-        count: initialStocking.count || 0,
-      },
-      boilingCompleted: {
-        totalBags: boilingCompleted.totalBags || 0,
-        count: boilingCompleted.count || 0,
-      },
-      splittingCompleted: {
-        totalBags: splittingCompleted.totalBags || 0,
-        count: splittingCompleted.count || 0,
-      },
-      packedReady: {
-        totalBags: packedReady.totalBags || 0,
-        count: packedReady.count || 0,
-      },
-    },
+    orderStatuses: orderStatusesDict,
     yearly: {
       year: yearNumber,
       months: yearMonths,
@@ -789,5 +876,9 @@ export {
   toggleAdminStatus, 
   authAdmin, 
   getAdminProfile,
-  getDashboard
+  getDashboard,
+  forgotPassword,
+  resetPassword,
+  refreshToken,
+  logout
 };

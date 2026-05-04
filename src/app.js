@@ -1,7 +1,18 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import morgan from 'morgan';
+import mongoose from 'mongoose';
 import connectDB from './config/db.js';
+import { 
+  helmetConfig, 
+  corsOptions, 
+  authRateLimit, 
+  generalRateLimit, 
+  strictRateLimit,
+  sanitizeInput,
+  securityLogger
+} from './config/security.js';
 
 // Routes
 import employeeRoutes from './routes/employeeRoutes.js';
@@ -12,6 +23,9 @@ import expenseRoutes from './routes/expenseRoutes.js';
 import stockRoutes from './routes/stockRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import incomeRoutes from './routes/incomeRoutes.js';
+import purchaseRoutes from './routes/purchaseRoutes.js';
+import billingRoutes from './routes/billingRoutes.js';
+import preferenceRoutes from './routes/preferenceRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -22,19 +36,41 @@ connectDB();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Security middleware (order matters!)
+app.use(helmetConfig);
+app.use(securityLogger);
+app.use(sanitizeInput);
 
-// API Routes
-app.use('/api/employees', employeeRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/sales', saleRoutes);
-app.use('/api/wages', wageRoutes);
-app.use('/api/expenses', expenseRoutes);
-app.use('/api/stock', stockRoutes);
+// CORS configuration
+app.use(cors(corsOptions));
+
+// Request logging
+if (process.env.NODE_ENV === 'production') {
+  app.use(morgan('combined'));
+} else {
+  app.use(morgan('dev'));
+}
+
+// Body parsing middleware — 5 mb to accommodate base64 logo images
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+
+// Rate limiting for different endpoint categories
+app.use('/api/admins/login', authRateLimit);
+app.use('/api/admins', authRateLimit);
+
+// API Routes with rate limiting
+app.use('/api/employees', generalRateLimit, employeeRoutes);
+app.use('/api/orders', generalRateLimit, orderRoutes);
+app.use('/api/sales', generalRateLimit, saleRoutes);
+app.use('/api/wages', generalRateLimit, wageRoutes);
+app.use('/api/expenses', generalRateLimit, expenseRoutes);
+app.use('/api/stock', strictRateLimit, stockRoutes);
 app.use('/api/admins', adminRoutes);
-app.use('/api/income', incomeRoutes);
+app.use('/api/income', generalRateLimit, incomeRoutes);
+app.use('/api/purchases', generalRateLimit, purchaseRoutes);
+app.use('/api/billing', strictRateLimit, billingRoutes);
+app.use('/api/preferences', generalRateLimit, preferenceRoutes);
 
 
 // Basic route
@@ -48,33 +84,91 @@ app.get('/', (req, res) => {
       wages: '/api/wages',
       expenses: '/api/expenses',
       stock: '/api/stock',   
-      income: '/api/income'
+      income: '/api/income',
+      purchases: '/api/purchases',
+      billing: '/api/billing',
+      preferences: '/api/preferences'
     }
   });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
-    error: 'Internal Server Error',
-    message: err.message || 'Something went wrong!' 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: process.env.npm_package_version || '1.0.0'
   });
 });
+
+// 404 handler with security logging
+app.use((req, res) => {
+  console.warn(`[404] ${req.method} ${req.originalUrl} - IP: ${req.ip}`);
+  res.status(404).json({ 
+    error: 'Route not found',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Enhanced error handling middleware
+app.use((err, req, res, next) => {
+  console.error(`[ERROR] ${err.message} - ${req.method} ${req.originalUrl} - IP: ${req.ip}`);
+  console.error(err.stack);
+  
+  // Don't expose stack traces in production
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  res.status(err.status || 500).json({ 
+    error: 'Internal Server Error',
+    message: isDevelopment ? err.message : 'Something went wrong!',
+    timestamp: new Date().toISOString(),
+    ...(isDevelopment && { stack: err.stack })
+  });
+});
+
+// Graceful shutdown
+const gracefulShutdown = (signal) => {
+  console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
+  
+  server.close(() => {
+    console.log('HTTP server closed.');
+    
+    // Close MongoDB connection
+    mongoose.connection.close(() => {
+      console.log('MongoDB connection closed.');
+      process.exit(0);
+    });
+  });
+  
+  // Force close after 30 seconds
+  setTimeout(() => {
+    console.error('Could not close connections in time, forcefully shutting down');
+    process.exit(1);
+  }, 30000);
+};
 
 // Start server
 const server = app.listen(PORT, () => {
   console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  console.log(`Health check available at: http://localhost:${PORT}/health`);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
-  console.error(`Error: ${err.message}`);
+  console.error(`[UNHANDLED REJECTION] ${err.message}`);
   // Close server & exit process
   server.close(() => process.exit(1));
 });
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error(`[UNCAUGHT EXCEPTION] ${err.message}`);
+  console.error(err.stack);
+  gracefulShutdown('SIGTERM');
+});
+
+// Handle graceful shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
