@@ -1,5 +1,5 @@
-// src/routes/stockRoutes.js
 import express from 'express';
+import { protect } from '../middleware/authMiddleware.js';
 import {
   getStock,
   updateStock,
@@ -9,16 +9,11 @@ import {
 
 const router = express.Router();
 
-// Get all stock items
+router.use(protect);
+
 router.get('/', getStock);
-
-// Add new stock item (admin only)
 router.post('/', addStockItem);
-
-// Update stock quantity (admin only)
 router.put('/:id', updateStock);
-
-// Delete stock item (admin only)
 router.delete('/:id', deleteStockItem);
 
 export default router;

@@ -1,5 +1,5 @@
-// src/routes/expenseRoutes.js
 import express from 'express';
+import { protect } from '../middleware/authMiddleware.js';
 import {
   createExpense,
   getExpenses,
@@ -9,16 +9,11 @@ import {
 
 const router = express.Router();
 
-// Create a new expense
+router.use(protect);
+
 router.post('/', createExpense);
-
-// Get all expenses
 router.get('/', getExpenses);
-
-// Update an expense
 router.put('/:id', updateExpense);
-
-// Delete an expense (admin only)
 router.delete('/:id', deleteExpense);
 
 export default router;

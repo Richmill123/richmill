@@ -149,7 +149,7 @@ const updateSale = asyncHandler(async (req, res) => {
   if (name) sale.name = name;
   if (phoneNumber) sale.phoneNumber = phoneNumber;
   if (address) sale.address = address;
-  if (mydebt) sale.mydebt = mydebt;
+  if (mydebt !== undefined && mydebt !== null) sale.mydebt = mydebt;
   
   // Update payment info
   if (paymentStatus) sale.paymentStatus = paymentStatus;
@@ -165,7 +165,7 @@ const updateSale = asyncHandler(async (req, res) => {
       });
       
       if (stockItem) {
-        stockItem.quantity += oldItem.quantity;
+        stockItem.availableQuantity += oldItem.quantity;
         await stockItem.save();
       }
     }
@@ -230,7 +230,7 @@ const deleteSale = asyncHandler(async (req, res) => {
   if (sale) {
     // Return items to stock if sale is deleted
     for (const item of sale.items) {
-      const stockItem = await Stock.findOne({ itemType: item.itemType });
+      const stockItem = await Stock.findOne({ itemType: item.itemType, clientId });
       if (stockItem) {
         stockItem.availableQuantity += item.quantity;
         await stockItem.save();

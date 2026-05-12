@@ -1,4 +1,5 @@
 import express from 'express';
+import { protect } from '../middleware/authMiddleware.js';
 import {
   createWage,
   getWages,
@@ -8,16 +9,11 @@ import {
 
 const router = express.Router();
 
-// Create a new wage record
+router.use(protect);
+
 router.post('/', createWage);
-
-// Get all wage records
 router.get('/', getWages);
-
-// Update wage record
 router.put('/:id', updateWage);
-
-// Delete a wage record
 router.delete('/:id', deleteWage);
 
 export default router;

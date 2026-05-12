@@ -1,6 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import { protect } from '../middleware/authMiddleware.js';
+import { authLimiter } from '../middleware/rateLimiter.js';
 import {
   createAdmin,
   getAdmins,
@@ -12,16 +13,16 @@ import {
 } from '../controllers/adminController.js';
 
 // Public routes
-router.post('/login', authAdmin);
+router.post('/login', authLimiter, authAdmin);
 
 // Protected routes
-router.get('/dashboard', getDashboard);
+router.get('/dashboard', protect, getDashboard);
 router.get('/profile', getAdminProfile);
 router.route('/')
   .post(createAdmin)
-  .get(getAdmins);
+  .get(protect, getAdmins);
 router.route('/:id')
-  .delete(deleteAdmin);
+  .delete(protect, deleteAdmin);
 router.route('/:id/active')
   .put(toggleAdminStatus);
 

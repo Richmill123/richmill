@@ -75,7 +75,6 @@ const getIncome  = asyncHandler(async (req, res) => {
       query.createdAt.$lte = endOfDay;
     }
   }
-  console.log("Query:", query);
   if (category) {
     query.category = category;
   }

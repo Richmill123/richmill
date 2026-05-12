@@ -1,4 +1,5 @@
 import express from 'express';
+import { protect } from '../middleware/authMiddleware.js';
 import {
   createSale,
   getSales,
@@ -8,16 +9,11 @@ import {
 
 const router = express.Router();
 
-// Create a new sale
+router.use(protect);
+
 router.post('/', createSale);
-
-// Get all sales
 router.get('/', getSales);
-
-// Update payment status
-router.put('/:id', updateSale );
-
-// Delete a sale
+router.put('/:id', updateSale);
 router.delete('/:id', deleteSale);
 
 export default router;

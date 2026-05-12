@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
+import { generalLimiter } from './middleware/rateLimiter.js';
 
 // Routes
 import employeeRoutes from './routes/employeeRoutes.js';
@@ -21,10 +22,27 @@ connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isProduction = process.env.NODE_ENV === 'production';
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// CORS — restrict to known origins
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+  : ['http://localhost:3000', 'http://localhost:5173'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
+
+app.use(generalLimiter);
+app.use(express.json({ limit: '10kb' }));
 
 // API Routes
 app.use('/api/employees', employeeRoutes);
@@ -36,21 +54,9 @@ app.use('/api/stock', stockRoutes);
 app.use('/api/admins', adminRoutes);
 app.use('/api/income', incomeRoutes);
 
-
-// Basic route
+// Root route
 app.get('/', (req, res) => {
-  res.json({ 
-    message: 'Welcome to Rice Mill Management System API',
-    endpoints: {
-      employees: '/api/employees',
-      orders: '/api/orders',
-      sales: '/api/sales',
-      wages: '/api/wages',
-      expenses: '/api/expenses',
-      stock: '/api/stock',   
-      income: '/api/income'
-    }
-  });
+  res.json({ message: 'Rice Mill Management System API' });
 });
 
 // 404 handler
@@ -61,20 +67,19 @@ app.use((req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ 
-    error: 'Internal Server Error',
-    message: err.message || 'Something went wrong!' 
+  const statusCode = res.statusCode !== 200 ? res.statusCode : 500;
+  res.status(statusCode).json({
+    error: isProduction ? 'Internal Server Error' : err.message || 'Something went wrong',
   });
 });
 
 // Start server
 const server = app.listen(PORT, () => {
-  console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
-  console.error(`Error: ${err.message}`);
-  // Close server & exit process
+  console.error(`Unhandled rejection: ${err.message}`);
   server.close(() => process.exit(1));
 });

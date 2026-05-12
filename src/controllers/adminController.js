@@ -13,9 +13,8 @@ import Income from '../models/incomeModel.js';
 // @route   POST /api/admins
 // @access  Private/Admin
 const createAdmin = asyncHandler(async (req, res) => {
-  const { name, username, password } = req.body;
+  const { name, username, password, type } = req.body;
 
-  // Check if username already exists for this client
   const adminExists = await Admin.findOne({ username });
 
   if (adminExists) {
@@ -26,7 +25,8 @@ const createAdmin = asyncHandler(async (req, res) => {
   const admin = await Admin.create({
     name,
     username,
-    password
+    password,
+    type,
   });
 
   if (admin) {
@@ -34,6 +34,7 @@ const createAdmin = asyncHandler(async (req, res) => {
       _id: admin._id,
       name: admin.name,
       username: admin.username,
+      type: admin.type,
       active: admin.active,
       token: generateToken(admin._id),
     });
@@ -63,7 +64,7 @@ const deleteAdmin = asyncHandler(async (req, res) => {
   }
 
   if (admin) {
-    await admin.remove();
+    await admin.deleteOne();
     res.json({ message: 'Admin removed' });
   } else {
     res.status(404);
@@ -89,6 +90,7 @@ const toggleAdminStatus = asyncHandler(async (req, res) => {
       _id: updatedAdmin._id,
       name: updatedAdmin.name,
       username: updatedAdmin.username,
+      type: updatedAdmin.type,
       active: updatedAdmin.active,
     });
   } else {
@@ -102,7 +104,7 @@ const toggleAdminStatus = asyncHandler(async (req, res) => {
 // @access  Public
 const authAdmin = asyncHandler(async (req, res) => {
   const { username, password } = req.body;
-  
+
   const admin = await Admin.findOne({ username });
 
   if (admin && (await admin.matchPassword(password))) {
@@ -110,6 +112,8 @@ const authAdmin = asyncHandler(async (req, res) => {
       _id: admin._id,
       name: admin.name,
       username: admin.username,
+      type: admin.type,
+      active: admin.active,
       token: generateToken(admin._id),
     });
   } else {
@@ -119,17 +123,25 @@ const authAdmin = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get admin profile
-// @route   GET /api/admins/profile
-// @access  Private
+// @route   GET /api/admins/profile?id=<adminId>
+// @access  Public
 const getAdminProfile = asyncHandler(async (req, res) => {
-  const admin = await Admin.findById(req.admin._id).select('-password');
-  
+  const id = req.query.id || req.admin?._id;
+
+  if (!id) {
+    res.status(400);
+    throw new Error('Admin ID is required');
+  }
+
+  const admin = await Admin.findById(id).select('-password');
+
   if (admin) {
     res.json({
       _id: admin._id,
       name: admin.name,
       username: admin.username,
-      active: admin.active
+      type: admin.type,
+      active: admin.active,
     });
   } else {
     res.status(404);
@@ -152,7 +164,7 @@ const getDashboard = asyncHandler(async (req, res) => {
   ? new Date(Date.UTC(
       new Date(startDate).getUTCFullYear(),
       new Date(startDate).getUTCMonth(),
-      new Date(startDate).getUTCDate()
+      new Date(startDate).getUTCDate(),5,30,0
     ))
   : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
@@ -206,7 +218,6 @@ const rangeEnd = endDate
     yearMatch.createdAt = { $gte: monthStart, $lte: monthEnd };
     yearIncomeMatch.date = { $gte: monthStart, $lte: monthEnd };
   }
-  console.log('Filter:', JSON.stringify(expenseMatch));
   const [
     paidOrderAgg,
     processedOrderAgg,
@@ -528,7 +539,6 @@ const rangeEnd = endDate
   const boilingCompleted = boilingCompletedAgg?.[0] || { totalBags: 0, count: 0 };
   const splittingCompleted = splittingCompletedAgg?.[0] || { totalBags: 0, count: 0 };
   const packedReady = packedReadyAgg?.[0] || { totalBags: 0, count: 0 };
-console.log('Expense value:', JSON.stringify(expenses));
   const salesByItemType = {
     bran: { quantity: 0, amount: 0 },
     husk: { quantity: 0, amount: 0 },
@@ -567,7 +577,6 @@ console.log('Expense value:', JSON.stringify(expenses));
   const expenseSalary = salaries.totalSalary || 0;
   const expenseOther = expenses.totalExpense || 0;
   const expenseTotal = expenseWages + expenseSalary + expenseOther;
-console.log('Total Expense value:', expenseTotal);
   const todaySummaryTotalOrder = pendingOrdersExcludingToday.totalBags || 0;
   const todaySummaryPaddyTaken = todayWageBags.totalBags || 0;
   const todaySummaryNewOrder = todayCreatedOrders.totalBags || 0;

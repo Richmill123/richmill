@@ -71,7 +71,6 @@ const addStockItem = asyncHandler(async (req, res) => {
   const existingItem = await Stock.findOne({ itemType, clientId });
   if (existingItem) {
     res.status(400);
-    console.log('dvvrve');
     throw new Error('This item type already exists for this client');
   }
 

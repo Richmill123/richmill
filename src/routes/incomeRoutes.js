@@ -1,24 +1,19 @@
-// src/routes/expenseRoutes.js
 import express from 'express';
+import { protect } from '../middleware/authMiddleware.js';
 import {
-  createIncome ,
-  getIncome ,
-  updateIncome ,
-  deleteIncome 
+  createIncome,
+  getIncome,
+  updateIncome,
+  deleteIncome
 } from '../controllers/incomeController.js';
 
 const router = express.Router();
 
-// Create a new expense
+router.use(protect);
+
 router.post('/', createIncome);
-
-// Get all expenses
 router.get('/', getIncome);
-
-// Update an expense
 router.put('/:id', updateIncome);
-
-// Delete an expense (admin only)
 router.delete('/:id', deleteIncome);
 
 export default router;

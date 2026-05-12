@@ -20,6 +20,10 @@ const adminSchema = new mongoose.Schema(
       required: true,
       minlength: 6,
     },
+    type: {
+      type: String,
+      trim: true,
+    },
     active: {
       type: Boolean,
       default: true,

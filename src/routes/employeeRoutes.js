@@ -1,4 +1,5 @@
 import express from 'express';
+import { protect } from '../middleware/authMiddleware.js';
 import {
   createEmployee,
   getEmployees,
@@ -8,16 +9,11 @@ import {
 
 const router = express.Router();
 
-// Create a new employee
+router.use(protect);
+
 router.post('/', createEmployee);
-
-// Get all employees
 router.get('/', getEmployees);
-
-// Update employee
 router.put('/:id', updateEmployee);
-
-// Delete an employee
 router.delete('/:id', deleteEmployee);
 
 export default router;
